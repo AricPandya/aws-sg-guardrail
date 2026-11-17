@@ -1,0 +1,15 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "OnlySecurityAdminsCanGrantSGExceptions",
+      "Effect": "Deny",
+      "Action": ["ec2:CreateTags", "ec2:DeleteTags"],
+      "Resource": "arn:aws:ec2:*:*:security-group/*",
+      "Condition": {
+        "ForAnyValue:StringEquals": { "aws:TagKeys": ["SecurityException"] },
+        "ArnNotLike": { "aws:PrincipalArn": "arn:aws:iam::*:role/SecurityAdmin" }
+      }
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1000" viewBox="0 0 1200 1000" font-family="Inter, 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#232f3e"/>
+    </marker>
+    <style>
+      .d{fill:#fff;stroke:#232f3e;stroke-width:1.8}
+      .ok{fill:#e9f7ef;stroke:#1d8102;stroke-width:1.8}
+      .bad{fill:#fdecea;stroke:#d13212;stroke-width:1.8}
+      .t{font-size:18px;fill:#232f3e;text-anchor:middle}
+      .tb{font-size:18px;font-weight:700;fill:#232f3e;text-anchor:middle}
+      .y{font-size:15px;font-weight:700;fill:#1d8102}
+      .no{font-size:15px;font-weight:700;fill:#d13212}
+      .f{stroke:#232f3e;stroke-width:2;fill:none}
+    </style>
+  </defs>
+  <rect width="1200" height="1000" fill="#f7f8fa"/>
+  <text x="60" y="60" font-size="28" font-weight="800" fill="#232f3e">What the Lambda decides for every event</text>
+
+  <!-- start -->
+  <rect x="420" y="90" width="360" height="60" rx="30" class="d"/>
+  <text class="tb" x="600" y="127">CloudTrail event arrives</text>
+  <path class="f" d="M600 150V188" marker-end="url(#a)"/>
+
+  <!-- errorCode -->
+  <path d="M600 190L780 245L600 300L420 245Z" class="d"/>
+  <text class="t" x="600" y="240">API call failed?</text>
+  <text class="t" x="600" y="262" font-size="15">(errorCode present)</text>
+  <path class="f" d="M780 245H880" marker-end="url(#a)"/><text class="y" x="800" y="235">yes</text>
+  <rect x="882" y="215" width="250" height="60" rx="10" class="ok"/><text class="t" x="1007" y="251">Ignore: nothing changed</text>
+  <path class="f" d="M600 300V338" marker-end="url(#a)"/><text class="no" x="612" y="325">no</text>
+
+  <!-- extract ids -->
+  <rect x="400" y="340" width="400" height="66" rx="10" class="d"/>
+  <text class="t" x="600" y="368">Collect group IDs from request</text>
+  <text class="t" x="600" y="391" font-size="15">+ responseElements (fallback)</text>
+  <path class="f" d="M600 406V444" marker-end="url(#a)"/>
+
+  <!-- exempt -->
+  <path d="M600 446L790 501L600 556L410 501Z" class="d"/>
+  <text class="t" x="600" y="496">Tagged</text>
+  <text class="t" x="600" y="518" font-size="15">SecurityException=approved?</text>
+  <path class="f" d="M790 501H880" marker-end="url(#a)"/><text class="y" x="805" y="491">yes</text>
+  <rect x="882" y="471" width="250" height="60" rx="10" class="ok"/><text class="t" x="1007" y="507">Skip (logged)</text>
+  <path class="f" d="M600 556V594" marker-end="url(#a)"/><text class="no" x="612" y="581">no</text>
+
+  <!-- risky? -->
+  <path d="M600 596L820 666L600 736L380 666Z" class="d"/>
+  <text class="t" x="600" y="648">Any ingress rule from</text>
+  <text class="t" x="600" y="670">0.0.0.0/0 or ::/0 covering a</text>
+  <text class="t" x="600" y="692" font-size="15">sensitive port or all traffic?</text>
+  <path class="f" d="M380 666H290" marker-end="url(#a)"/><text class="no" x="320" y="656">no</text>
+  <rect x="68" y="636" width="220" height="60" rx="10" class="ok"/><text class="t" x="178" y="672">No action</text>
+  <path class="f" d="M600 736V774" marker-end="url(#a)"/><text class="y" x="612" y="761">yes</text>
+
+  <!-- dry run -->
+  <path d="M600 776L740 826L600 876L460 826Z" class="d"/>
+  <text class="t" x="600" y="832">DRY_RUN?</text>
+  <path class="f" d="M740 826H880" marker-end="url(#a)"/><text class="y" x="770" y="816">yes</text>
+  <rect x="882" y="796" width="250" height="60" rx="10" class="ok"/><text class="t" x="1007" y="822">Alert only</text><text class="t" x="1007" y="844" font-size="14">"would-revoke"</text>
+  <path class="f" d="M460 826H290" marker-end="url(#a)"/><text class="no" x="330" y="816">no</text>
+  <rect x="40" y="786" width="248" height="80" rx="10" class="bad"/>
+  <text class="tb" x="164" y="818">Revoke by rule ID</text>
+  <text class="t" x="164" y="844" font-size="15">+ SNS alert with actor</text>
+
+  <text x="60" y="950" font-size="15" fill="#545b64">Only the risky rule IDs are revoked. 443 from 0.0.0.0/0 or 22 from 10.0.0.0/8 stays untouched.</text>
+</svg>

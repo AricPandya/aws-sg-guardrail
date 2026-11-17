@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="Inter, 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#232f3e"/>
+    </marker>
+    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#d13212"/>
+    </marker>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#7d8998"/>
+    </marker>
+    <style>
+      .box{fill:#fff;stroke:#c6ccd4;stroke-width:1.5}
+      .t{font-size:20px;font-weight:700;fill:#232f3e}
+      .s{font-size:15px;fill:#545b64}
+      .n{font-size:14px;font-weight:700;fill:#fff}
+      .lbl{font-size:14px;fill:#232f3e}
+      .f{stroke:#232f3e;stroke-width:2.2;fill:none}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#f7f8fa"/>
+  <text x="60" y="64" font-size="30" font-weight="800" fill="#232f3e">SG Guardrail: architecture</text>
+  <text x="60" y="96" font-size="17" fill="#545b64">One AWS account and region. Everything inside the dashed line is deployed by template.yaml.</text>
+
+  <rect x="40" y="130" width="1520" height="730" rx="16" fill="none" stroke="#7d8998" stroke-dasharray="8 6"/>
+  <text x="60" y="160" font-size="15" font-weight="700" fill="#7d8998">AWS ACCOUNT / REGION</text>
+
+  <!-- Actor -->
+  <g transform="translate(80,250)">
+    <rect class="box" width="210" height="110" rx="12"/>
+    <text class="t" x="20" y="40">Developer / CI</text>
+    <text class="s" x="20" y="66">aws ec2 authorize-</text>
+    <text class="s" x="20" y="86">security-group-ingress</text>
+  </g>
+  <!-- SG -->
+  <g transform="translate(380,250)">
+    <rect class="box" width="230" height="110" rx="12" stroke="#d13212"/>
+    <text class="t" x="20" y="40">Security group</text>
+    <text class="s" x="20" y="66" fill="#d13212">22/tcp ← 0.0.0.0/0  ✗</text>
+    <text class="s" x="20" y="88">443/tcp ← 0.0.0.0/0  ✓</text>
+  </g>
+  <!-- CloudTrail -->
+  <g transform="translate(700,250)">
+    <rect class="box" width="210" height="110" rx="12"/>
+    <rect x="0" y="0" width="8" height="110" rx="4" fill="#e7157b"/>
+    <text class="t" x="24" y="40">CloudTrail</text>
+    <text class="s" x="24" y="66">management event</text>
+    <text class="s" x="24" y="86">(trail optional in stack)</text>
+  </g>
+  <!-- EventBridge -->
+  <g transform="translate(1000,250)">
+    <rect class="box" width="230" height="110" rx="12"/>
+    <rect x="0" y="0" width="8" height="110" rx="4" fill="#e7157b"/>
+    <text class="t" x="24" y="40">EventBridge rule</text>
+    <text class="s" x="24" y="66">AuthorizeSGIngress</text>
+    <text class="s" x="24" y="86">ModifySGRules</text>
+  </g>
+  <!-- Lambda -->
+  <g transform="translate(1000,470)">
+    <rect class="box" width="230" height="120" rx="12" stroke="#ff9900" stroke-width="2.5"/>
+    <rect x="0" y="0" width="8" height="120" rx="4" fill="#ff9900"/>
+    <text class="t" x="24" y="40">Lambda (Python)</text>
+    <text class="s" x="24" y="66">find risky rules</text>
+    <text class="s" x="24" y="86">check exemption tag</text>
+    <text class="s" x="24" y="106">revoke by rule ID</text>
+  </g>
+  <!-- SQS DLQ -->
+  <g transform="translate(1310,470)">
+    <rect class="box" width="210" height="120" rx="12"/>
+    <rect x="0" y="0" width="8" height="120" rx="4" fill="#e7157b"/>
+    <text class="t" x="24" y="40">SQS DLQ</text>
+    <text class="s" x="24" y="66">events that failed</text>
+    <text class="s" x="24" y="86">after 4 retries</text>
+  </g>
+  <!-- CloudWatch -->
+  <g transform="translate(1310,660)">
+    <rect class="box" width="210" height="120" rx="12"/>
+    <rect x="0" y="0" width="8" height="120" rx="4" fill="#e7157b"/>
+    <text class="t" x="24" y="40">CloudWatch</text>
+    <text class="s" x="24" y="66">Logs (90 days)</text>
+    <text class="s" x="24" y="86">alarms: errors, DLQ</text>
+  </g>
+  <!-- SNS -->
+  <g transform="translate(700,660)">
+    <rect class="box" width="230" height="120" rx="12"/>
+    <rect x="0" y="0" width="8" height="120" rx="4" fill="#e7157b"/>
+    <text class="t" x="24" y="40">SNS topic</text>
+    <text class="s" x="24" y="66">KMS-encrypted (CMK)</text>
+    <text class="s" x="24" y="86">email subscription</text>
+  </g>
+  <!-- Email -->
+  <g transform="translate(380,660)">
+    <rect class="box" width="230" height="120" rx="12"/>
+    <text class="t" x="20" y="40">Security team</text>
+    <text class="s" x="20" y="66">who, what, when,</text>
+    <text class="s" x="20" y="86">which rule was closed</text>
+  </g>
+  <!-- GuardDuty -->
+  <g transform="translate(80,470)">
+    <rect class="box" width="210" height="120" rx="12"/>
+    <rect x="0" y="0" width="8" height="120" rx="4" fill="#dd344c"/>
+    <text class="t" x="24" y="40">GuardDuty</text>
+    <text class="s" x="24" y="66">threat findings</text>
+    <text class="s" x="24" y="86">(detector optional)</text>
+  </g>
+  <g transform="translate(380,470)">
+    <rect class="box" width="230" height="120" rx="12"/>
+    <rect x="0" y="0" width="8" height="120" rx="4" fill="#e7157b"/>
+    <text class="t" x="24" y="40">EventBridge rule</text>
+    <text class="s" x="24" y="66">severity ≥ 7</text>
+    <text class="s" x="24" y="86">input transformer</text>
+  </g>
+
+  <!-- flows: remediation path -->
+  <path class="f" d="M290 305H372" marker-end="url(#a)"/>
+  <path class="f" d="M610 305H692" marker-end="url(#a)"/>
+  <path class="f" d="M910 305H992" marker-end="url(#a)"/>
+  <path class="f" d="M1115 360V462" marker-end="url(#a)"/>
+  <path d="M1000 530H760Q495 530 495 368" stroke="#d13212" stroke-width="2.5" fill="none" stroke-dasharray="7 5" marker-end="url(#r)"/>
+  <path class="f" d="M1060 590Q1060 720 938 720" marker-end="url(#a)"/>
+  <path class="f" d="M700 720H618" marker-end="url(#a)"/>
+  <path d="M1230 530H1302" stroke="#7d8998" stroke-width="2" fill="none" stroke-dasharray="5 5" marker-end="url(#g)"/>
+  <path d="M1200 590Q1200 700 1302 715" stroke="#7d8998" stroke-width="2" fill="none" stroke-dasharray="5 5" marker-end="url(#g)"/>
+  <path d="M1310 760Q1100 840 900 780" stroke="#7d8998" stroke-width="2" fill="none" stroke-dasharray="5 5" marker-end="url(#g)"/>
+  <!-- guardduty path -->
+  <path class="f" d="M290 530H372" marker-end="url(#a)"/>
+  <path class="f" d="M560 590Q600 640 720 655" marker-end="url(#a)"/>
+
+  <!-- step numbers -->
+  <g>
+    <circle cx="331" cy="290" r="14" fill="#232f3e"/><text class="n" x="331" y="295" text-anchor="middle">1</text>
+    <circle cx="651" cy="290" r="14" fill="#232f3e"/><text class="n" x="651" y="295" text-anchor="middle">2</text>
+    <circle cx="951" cy="290" r="14" fill="#232f3e"/><text class="n" x="951" y="295" text-anchor="middle">3</text>
+    <circle cx="1135" cy="412" r="14" fill="#232f3e"/><text class="n" x="1135" y="417" text-anchor="middle">4</text>
+    <circle cx="760" cy="512" r="14" fill="#d13212"/><text class="n" x="760" y="517" text-anchor="middle">5</text>
+    <circle cx="975" cy="700" r="14" fill="#232f3e"/><text class="n" x="975" y="705" text-anchor="middle">6</text>
+  </g>
+  <text class="lbl" x="780" y="517" fill="#d13212">RevokeSecurityGroupIngress</text>
+  <text class="lbl" x="1245" y="518">on failure</text>
+  <text class="lbl" x="1020" y="840">alarm → SNS</text>
+
+  <!-- legend -->
+  <g transform="translate(80,800)" font-size="14" fill="#545b64">
+    <path d="M0 0H40" class="f"/><text x="50" y="5">event / data flow</text>
+    <path d="M200 0H240" stroke="#d13212" stroke-width="2.5" stroke-dasharray="7 5"/><text x="250" y="5">remediation API call</text>
+    <path d="M430 0H470" stroke="#7d8998" stroke-width="2" stroke-dasharray="5 5"/><text x="480" y="5">failure / monitoring path</text>
+  </g>
+</svg>

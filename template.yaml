@@ -1,0 +1,290 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SG Guardrail - auto-revoke security group rules that expose sensitive
+  ports to the internet, and alert on high-severity GuardDuty findings.
+
+Parameters:
+  AlertEmail:
+    Type: String
+    Description: Email address that receives guardrail and GuardDuty alerts.
+  SensitivePorts:
+    Type: String
+    Default: "22,3389,3306,5432,1433,6379,9200,27017"
+    Description: Comma-separated ports that must never be open to 0.0.0.0/0 or ::/0.
+  DryRun:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: "true = alert only, do not revoke. Use it for the first week in a shared account."
+  CreateTrail:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: "true if this account/region has no CloudTrail trail yet (an Organizations or Control Tower trail counts)."
+  EnableGuardDuty:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: "true only if GuardDuty is NOT already enabled in this region (only one detector is allowed)."
+
+Conditions:
+  MakeTrail: !Equals [!Ref CreateTrail, "true"]
+  MakeDetector: !Equals [!Ref EnableGuardDuty, "true"]
+
+Resources:
+  # ---------------------------------------------------------------- alerts
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: SG Guardrail
+      KmsMasterKeyId: !Ref AlertKey
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlertEmail
+
+  # Customer-managed key: the AWS-managed alias/aws/sns key does not let
+  # EventBridge publish to an encrypted topic, so we need our own key policy.
+  AlertKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Encrypts SG Guardrail alerts
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AccountAdmin
+            Effect: Allow
+            Principal: { AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root" }
+            Action: "kms:*"
+            Resource: "*"
+          - Sid: AllowEventBridge
+            Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: ["kms:GenerateDataKey*", "kms:Decrypt"]
+            Resource: "*"
+
+  AlertTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref AlertTopic]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowGuardDutyRule
+            Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: sns:Publish
+            Resource: !Ref AlertTopic
+            Condition:
+              ArnEquals: { "aws:SourceArn": !GetAtt GuardDutyHighSeverityRule.Arn }
+
+  # ----------------------------------------------------------- remediation
+  RemediationDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600 # 14 days
+      SqsManagedSseEnabled: true
+
+  # EventBridge needs permission to drop failed events into the DLQ.
+  RemediationDLQPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: [!Ref RemediationDLQ]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: sqs:SendMessage
+            Resource: !GetAtt RemediationDLQ.Arn
+
+  RemediationFunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${RemediationFunction}
+      RetentionInDays: 90
+
+  RemediationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Revokes world-open ingress rules on sensitive ports
+      CodeUri: src/
+      Handler: remediate.handler
+      Runtime: python3.12
+      Architectures: [arm64]
+      MemorySize: 256
+      Timeout: 30
+      Environment:
+        Variables:
+          ALERT_TOPIC_ARN: !Ref AlertTopic
+          SENSITIVE_PORTS: !Ref SensitivePorts
+          DRY_RUN: !Ref DryRun
+          EXEMPT_TAG_KEY: SecurityException
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ReadSecurityGroups # Describe* calls do not support resource-level permissions
+              Effect: Allow
+              Action:
+                - ec2:DescribeSecurityGroups
+                - ec2:DescribeSecurityGroupRules
+              Resource: "*"
+            - Sid: RevokeOnly # the function can close rules, never open them
+              Effect: Allow
+              Action: ec2:RevokeSecurityGroupIngress
+              Resource: !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*"
+            - Sid: Alert
+              Effect: Allow
+              Action: sns:Publish
+              Resource: !Ref AlertTopic
+            - Sid: UseAlertKey
+              Effect: Allow
+              Action: ["kms:GenerateDataKey*", "kms:Decrypt"]
+              Resource: !GetAtt AlertKey.Arn
+      Events:
+        SecurityGroupChanged:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: [aws.ec2]
+              detail-type: [AWS API Call via CloudTrail]
+              detail:
+                eventSource: [ec2.amazonaws.com]
+                eventName:
+                  - AuthorizeSecurityGroupIngress
+                  - ModifySecurityGroupRules
+            RetryPolicy:
+              MaximumRetryAttempts: 4
+              MaximumEventAgeInSeconds: 900
+            DeadLetterConfig:
+              Arn: !GetAtt RemediationDLQ.Arn
+
+  # Alarm if anything lands in the DLQ: a guardrail that fails silently is worse than none.
+  DLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: SG Guardrail could not process an event
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions: [{ Name: QueueName, Value: !GetAtt RemediationDLQ.QueueName }]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertTopic]
+
+  FunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: SG Guardrail Lambda is erroring
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions: [{ Name: FunctionName, Value: !Ref RemediationFunction }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertTopic]
+
+  # ------------------------------------------------------------- GuardDuty
+  Detector:
+    Type: AWS::GuardDuty::Detector
+    Condition: MakeDetector
+    Properties:
+      Enable: true
+      FindingPublishingFrequency: FIFTEEN_MINUTES
+
+  GuardDutyHighSeverityRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Route GuardDuty findings with severity >= 7 to email
+      EventPattern:
+        source: [aws.guardduty]
+        detail-type: [GuardDuty Finding]
+        detail:
+          severity: [{ numeric: [">=", 7] }]
+      Targets:
+        - Id: alert-topic
+          Arn: !Ref AlertTopic
+          InputTransformer:
+            InputPathsMap:
+              type: $.detail.type
+              severity: $.detail.severity
+              region: $.region
+              account: $.account
+              title: $.detail.title
+              id: $.detail.id
+            InputTemplate: |
+              "GuardDuty HIGH finding <type> (severity <severity>) in account <account>, <region>."
+              "<title>"
+              "Open: https://console.aws.amazon.com/guardduty/home?region=<region>#/findings?search=id%3D<id>"
+
+  # ------------------------------------------- optional CloudTrail trail
+  TrailBucket:
+    Type: AWS::S3::Bucket
+    Condition: MakeTrail
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
+      LifecycleConfiguration:
+        Rules: [{ Id: expire, Status: Enabled, ExpirationInDays: 365 }]
+
+  TrailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: MakeTrail
+    Properties:
+      Bucket: !Ref TrailBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AclCheck
+            Effect: Allow
+            Principal: { Service: cloudtrail.amazonaws.com }
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt TrailBucket.Arn
+          - Sid: Write
+            Effect: Allow
+            Principal: { Service: cloudtrail.amazonaws.com }
+            Action: s3:PutObject
+            Resource: !Sub "${TrailBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: [!GetAtt TrailBucket.Arn, !Sub "${TrailBucket.Arn}/*"]
+            Condition: { Bool: { "aws:SecureTransport": "false" } }
+
+  Trail:
+    Type: AWS::CloudTrail::Trail
+    Condition: MakeTrail
+    DependsOn: TrailBucketPolicy
+    Properties:
+      IsLogging: true
+      S3BucketName: !Ref TrailBucket
+      IsMultiRegionTrail: true
+      IncludeGlobalServiceEvents: true
+      EnableLogFileValidation: true
+
+Outputs:
+  AlertTopicArn:
+    Value: !Ref AlertTopic
+  RemediationFunctionName:
+    Value: !Ref RemediationFunction
+  DeadLetterQueueUrl:
+    Value: !Ref RemediationDLQ
+  TrailBucketName:
+    Condition: MakeTrail
+    Value: !Ref TrailBucket

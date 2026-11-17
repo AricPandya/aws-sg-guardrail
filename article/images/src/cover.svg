@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" font-family="Inter, 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f1b2d"/>
+      <stop offset="1" stop-color="#16263f"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#ffffff" stroke-opacity="0.04"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <rect x="0" y="0" width="10" height="630" fill="#ff9900"/>
+
+  <text x="70" y="110" fill="#ff9900" font-size="22" font-weight="700" letter-spacing="3">AWS SECURITY · HANDS-ON BUILD</text>
+  <text x="70" y="190" fill="#ffffff" font-size="58" font-weight="800">Self-healing security groups</text>
+  <text x="70" y="260" fill="#ffffff" font-size="58" font-weight="800">with EventBridge + Lambda</text>
+  <text x="70" y="320" fill="#a9b8cc" font-size="26">Auto-revoke world-open SSH, RDP and database ports,</text>
+  <text x="70" y="356" fill="#a9b8cc" font-size="26">alert on GuardDuty findings. Deploy, test, clean up.</text>
+
+  <!-- mini flow -->
+  <g font-size="18" font-weight="600" text-anchor="middle">
+    <g transform="translate(70,430)">
+      <rect width="190" height="76" rx="12" fill="#1f3354" stroke="#3b5b8a"/>
+      <text x="95" y="34" fill="#ffffff">0.0.0.0/0 : 22</text>
+      <text x="95" y="58" fill="#ff6b6b" font-size="15">rule added</text>
+    </g>
+    <g transform="translate(330,430)">
+      <rect width="190" height="76" rx="12" fill="#1f3354" stroke="#3b5b8a"/>
+      <text x="95" y="34" fill="#ffffff">CloudTrail</text>
+      <text x="95" y="58" fill="#a9b8cc" font-size="15">→ EventBridge</text>
+    </g>
+    <g transform="translate(590,430)">
+      <rect width="190" height="76" rx="12" fill="#1f3354" stroke="#ff9900"/>
+      <text x="95" y="34" fill="#ffffff">Lambda</text>
+      <text x="95" y="58" fill="#ff9900" font-size="15">revoke rule</text>
+    </g>
+    <g transform="translate(850,430)">
+      <rect width="190" height="76" rx="12" fill="#1f3354" stroke="#3ecf8e"/>
+      <text x="95" y="34" fill="#ffffff">SNS alert</text>
+      <text x="95" y="58" fill="#3ecf8e" font-size="15">port closed ✓</text>
+    </g>
+    <g stroke="#ff9900" stroke-width="3" fill="none">
+      <path d="M266 468H322"/><path d="M526 468H582"/><path d="M786 468H842"/>
+    </g>
+    <g fill="#ff9900">
+      <path d="M322 461l10 7-10 7z"/><path d="M582 461l10 7-10 7z"/><path d="M842 461l10 7-10 7z"/>
+    </g>
+  </g>
+
+  <text x="70" y="580" fill="#6f829c" font-size="18">AWS SAM · Python 3.12 · CloudTrail · EventBridge · Lambda · SNS · KMS · GuardDuty</text>
+</svg>
