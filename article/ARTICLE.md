@@ -21,8 +21,6 @@ Every AWS account I have reviewed has had at least one security group with port 
 
 Detection-only tools such as AWS Config rules and Security Hub controls tell you about it. Then a human has to see the finding, triage it and fix it. I wanted the fix to happen automatically, in seconds, and only for rules that are clearly wrong, so the guardrail never becomes the thing people complain about.
 
-✏️ *Add one or two sentences of your own: the time this happened to you or your team, and what it cost.*
-
 ## What you'll build
 
 ![Architecture diagram](images/architecture.png)
@@ -280,7 +278,7 @@ Answer the prompts: your `AlertEmail`, then `CreateTrail=true` only if the regio
 
 **Then confirm the SNS subscription** from the email AWS sends you. Until you click the link, alerts go nowhere. That is the most common reason for "it revoked the rule but I got no email".
 
-✏️ *Screenshot: CloudFormation stack in `CREATE_COMPLETE` with its resources tab.*
+
 
 ## Step 7: Verify end-to-end
 
@@ -290,17 +288,16 @@ The test script creates a throwaway security group in your default VPC, opens **
 ./scripts/test-open-ssh.sh
 ```
 
-Expected output (✏️ replace with yours):
+Expected output:
 
 ```
 Created sg-0a1b2c3d4e5f in vpc-0123 (us-east-1)
 Opened 22/tcp and 443/tcp to 0.0.0.0/0 - waiting for the guardrail...
-PASS: port 22 rule revoked after ✏️__s
+PASS: port 22 rule revoked 
 Remaining ingress rule: 443  0.0.0.0/0
 Deleted sg-0a1b2c3d4e5f
 ```
 
-✏️ *Screenshot: the alert email (showing `changedBy`, `sourceIp`, `rules`).*
 
 Check the logs:
 
@@ -316,8 +313,6 @@ aws guardduty create-sample-findings --detector-id "$DETECTOR" \
   --finding-types "Backdoor:EC2/C&CActivity.B"
 ```
 
-✏️ *Screenshot: the GuardDuty alert email.*
-
 **Test the exemption:**
 
 ```bash
@@ -328,7 +323,6 @@ Rules on that group are now logged and skipped.
 
 ## What tripped me up (so it doesn't trip you)
 
-✏️ *Keep the ones you hit, delete the ones you didn't, and add your own. Honest failures score well.*
 
 **1. SNS encryption can silently break the GuardDuty alerts.** The obvious choice is to encrypt the topic with the AWS-managed key `alias/aws/sns`. Lambda can still publish with it, but EventBridge can't, so the GuardDuty path delivers nothing and nothing reports an error. The AWS-managed key's policy can't be edited to let `events.amazonaws.com` use it. **Fix:** a customer-managed KMS key whose key policy allows EventBridge `kms:GenerateDataKey*` and `kms:Decrypt`. It costs $1/month and it's in the template.
 
@@ -400,24 +394,5 @@ aws cloudformation create-stack-set --stack-set-name sg-guardrail \
 ```
 
 The script empties the trail bucket (if the stack created one), then runs `sam delete`. The KMS key enters its standard pending-deletion period, which is expected. If you enabled GuardDuty only for this tutorial, disable it in the console, or remove it by redeploying with `EnableGuardDuty=false` before deleting the stack.
-
-## Wrap-up
-
-You now have a guardrail that:
-
-- ✅ closes world-open SSH, RDP and database ports within seconds,
-- ✅ leaves legitimate rules (443, private CIDRs) alone,
-- ✅ tells you who did it and from where,
-- ✅ escalates high-severity GuardDuty findings,
-- ✅ alarms on its own failures,
-- ✅ deploys, tests and tears down with three commands.
-
-**Next steps I'd take:** send alerts to Slack via AWS Chatbot, add Security Hub as a second target so findings are tracked, and extend the same pattern to public S3 buckets (`PutBucketPolicy`, `PutBucketAcl`).
-
-✏️ *Your closing line: what you'd do differently, or a question for readers.*
-
----
-
-*Slow is smooth, and smooth is fast.* 🎷
 
 **Tags:** `#security` `#eventbridge` `#lambda` `#aws-sam` `#guardduty` `#automation`
